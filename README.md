@@ -25,8 +25,8 @@ python main.py
 - 📥 粘贴导入（从 PDF/Excel/微信 复制费用明细）
 - 📥 Excel 导入（自动匹配列）
 - 📤 导出 Excel / PDF
-- ↩ Ctrl+Z 撤销
-- 🌙 iOS 18 深色模式 UI
+- ↩  Ctrl+Z 撤销
+- 🌙 深色模式 UI
 
 ## 技术栈
 
