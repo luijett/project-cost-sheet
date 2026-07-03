@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, Signal, QTimer, QRect, QPointF, QRectF, QSize, QPoint
 from PySide6.QtGui import (QFont, QColor, QPalette, QPainter, QPen, QBrush,
-                             QPaintEvent, QPixmap, QIcon, QLinearGradient, QKeyEvent)
+                             QPaintEvent, QPixmap, QIcon, QLinearGradient, QKeySequence, QShortcut)
 
 from database import Database
 from importers import parse_clipboard_text, import_excel
@@ -641,7 +641,6 @@ class App(QMainWindow):
         self._undo_stack = deque(maxlen=50)
         self._undoing = False
         self._loading = False
-        self.installEventFilter(self)
 
         self._setup_ui(); self._load_projects()
 
@@ -762,6 +761,7 @@ class App(QMainWindow):
         """)
         self.undo_btn.clicked.connect(self._undo)
         tb.addWidget(self.undo_btn)
+        QShortcut(QKeySequence("Ctrl+Z"), self, self.undo_btn.click)
 
         for label, slot in [("粘贴导入", self._import_paste), ("导入 Excel", self._import_excel),
                             ("导出 Excel", self._export_excel), ("导出 PDF", self._export_pdf)]:
@@ -838,13 +838,6 @@ class App(QMainWindow):
         splitter.setSizes([260, 940])
         self.setCentralWidget(splitter)
 
-    def eventFilter(self, obj, event):
-        if (event.type() == event.Type.KeyPress and
-            event.key() == Qt.Key.Key_Z and
-            event.modifiers() & Qt.KeyboardModifier.ControlModifier):
-            self._undo()
-            return True
-        return super().eventFilter(obj, event)
 
     # ── 项目列表 ──
 
