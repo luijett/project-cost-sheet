@@ -641,6 +641,7 @@ class App(QMainWindow):
         self._undo_stack = deque(maxlen=50)
         self._undoing = False
         self._loading = False
+        self.installEventFilter(self)
 
         self._setup_ui(); self._load_projects()
 
@@ -837,11 +838,13 @@ class App(QMainWindow):
         splitter.setSizes([260, 940])
         self.setCentralWidget(splitter)
 
-    def keyPressEvent(self, event: QKeyEvent):
-        if event.key() == Qt.Key.Key_Z and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+    def eventFilter(self, obj, event):
+        if (event.type() == event.Type.KeyPress and
+            event.key() == Qt.Key.Key_Z and
+            event.modifiers() & Qt.KeyboardModifier.ControlModifier):
             self._undo()
-            return
-        super().keyPressEvent(event)
+            return True
+        return super().eventFilter(obj, event)
 
     # ── 项目列表 ──
 
