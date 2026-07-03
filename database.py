@@ -1,4 +1,4 @@
-"""项目费用结算 v1 — 数据库层"""
+﻿"""project-cost-sheet — 数据库层"""
 import sqlite3, logging
 from decimal import Decimal
 from pathlib import Path

@@ -1,4 +1,4 @@
-"""项目费用结算 v1 — 数据模型 & 预设模板"""
+﻿"""project-cost-sheet — 数据模型 & 预设模板"""
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional
 from pydantic import BaseModel, Field

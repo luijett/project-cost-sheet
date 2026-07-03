@@ -1,5 +1,5 @@
 """
-项目费用结算 v2 — iOS 18 深色备忘录 + PDF 导入
+project-cost-sheet — iOS 18 dark mode budget tool
 ================================================
 """
 
@@ -628,7 +628,7 @@ class CategorySection(QFrame):
 class App(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("项目费用结算 v2")
+        self.setWindowTitle("project-cost-sheet")
         self.resize(1200, 840)
         screen = self.screen().availableGeometry()
         self.move((screen.width() - self.width()) // 2, (screen.height() - self.height()) // 2)
@@ -1538,7 +1538,7 @@ class App(QMainWindow):
         types = [t.strip() for t in proj.get("project_types", "print").split(",")]
         tl_text = "套拍 (平面 + 视频)" if len(types) == 2 else ("平面" if types[0] == "print" else "视频")
 
-        story.append(Paragraph("项目费用结算", ts))
+        story.append(Paragraph("project-cost-sheet", ts))
         story.append(Paragraph(proj['name'], ts))
         story.append(Paragraph(
             f"{tl_text} | 币种: {proj.get('currency','CNY')} {sym} | {datetime.now():%Y-%m-%d}", ss))

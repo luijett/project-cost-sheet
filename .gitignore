@@ -1,7 +1,10 @@
-__pycache__/
+﻿__pycache__/
 *.pyc
 *.db
 *.db-shm
 *.db-wal
 *.log
 .DS_Store
+dist/
+build/
+*.spec
