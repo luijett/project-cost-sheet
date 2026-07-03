@@ -2,6 +2,21 @@
 
 影视/平面广告制片人专用项目记账工具。
 
+[⬇ 一键下载](https://github.com/luijett/project-cost-sheet/archive/refs/heads/master.zip)
+
+## 安装运行
+
+```bash
+# 1. 确保已安装 Python 3.12+
+python --version
+
+# 2. 安装依赖
+pip install PySide6 pydantic openpyxl pandas reportlab
+
+# 3. 启动
+python main.py
+```
+
 ## 功能
 
 - 📷🎬 平面/视频/套拍项目预算管理
@@ -16,10 +31,3 @@
 ## 技术栈
 
 Python 3.12 / PySide6 / SQLite
-
-## 启动
-
-```bash
-pip install PySide6 pydantic openpyxl pandas reportlab
-python main.py
-```
