@@ -532,6 +532,7 @@ class CategorySection(QFrame):
         self.category_data = category_data or {}
         self.currency = currency
         self.item_widgets: list[LineItemRow] = []
+        self._collapsed = False
         self._setup()
         if default_items:
             for desc, note in default_items:
@@ -543,7 +544,12 @@ class CategorySection(QFrame):
         lo = QVBoxLayout(self); lo.setContentsMargins(0, 0, 0, 0); lo.setSpacing(0)
 
         hdr = QWidget()
+        hdr.setCursor(Qt.CursorShape.PointingHandCursor)
+        hdr.mousePressEvent = lambda e: self._toggle()
         hl = QHBoxLayout(hdr); hl.setContentsMargins(32, 20, 24, 6)
+        self.toggle_btn = QLabel("▼")
+        self.toggle_btn.setStyleSheet(f"font-size:10px;color:{C['secondary']};padding-right:6px;")
+        hl.addWidget(self.toggle_btn)
         nm = QLabel(self.category_data.get("name", "").upper())
         nm.setStyleSheet(
             f"font-size:12px;font-weight:800;color:{C['section']};letter-spacing:0.6px;")
@@ -553,21 +559,29 @@ class CategorySection(QFrame):
             f"font-size:12px;font-weight:700;color:{C['secondary']};")
         hl.addWidget(self.subtotal_label); lo.addWidget(hdr)
 
-        sep = QFrame(); sep.setFrameShape(QFrame.Shape.HLine)
-        sep.setStyleSheet(f"background:{C['separator']};max-height:0.5px;margin:0 24px;")
-        lo.addWidget(sep)
+        self._sep = QFrame(); self._sep.setFrameShape(QFrame.Shape.HLine)
+        self._sep.setStyleSheet(f"background:{C['separator']};max-height:0.5px;margin:0 24px;")
+        lo.addWidget(self._sep)
 
         self.items_widget = QWidget()
         self.items_layout = QVBoxLayout(self.items_widget)
         self.items_layout.setContentsMargins(24, 4, 16, 4); self.items_layout.setSpacing(0)
         lo.addWidget(self.items_widget)
 
-        add_btn = QPushButton("+ 添加项目")
-        add_btn.setObjectName("linkBtn"); add_btn.setStyleSheet(
+        self._add_btn = QPushButton("+ 添加项目")
+        self._add_btn.setObjectName("linkBtn"); self._add_btn.setStyleSheet(
             f"background:transparent;color:{C['accent']};border:none;font-size:13px;font-weight:700;padding:6px 4px;")
-        add_btn.clicked.connect(lambda: self.add_item()); lo.addWidget(add_btn)
+        self._add_btn.clicked.connect(lambda: self.add_item()); lo.addWidget(self._add_btn)
 
-        sp = QWidget(); sp.setFixedHeight(12); lo.addWidget(sp)
+        self._spacer = QWidget(); self._spacer.setFixedHeight(12); lo.addWidget(self._spacer)
+
+    def _toggle(self):
+        self._collapsed = not self._collapsed
+        self.toggle_btn.setText("▶" if self._collapsed else "▼")
+        self.items_widget.setVisible(not self._collapsed)
+        self._add_btn.setVisible(not self._collapsed)
+        self._sep.setVisible(not self._collapsed)
+        self._spacer.setVisible(not self._collapsed)
 
     def add_item(self, item_data=None):
         w = LineItemRow(item_data, self.currency)
