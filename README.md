@@ -2,7 +2,7 @@
 
 影视/平面广告制片人专用项目记账工具。
 
-[⬇ 一键下载](https://github.com/luijett/project-cost-sheet/archive/refs/heads/master.zip)
+[⬇ 下载 .exe (无需 Python)](https://github.com/luijett/project-cost-sheet/releases/latest/download/project-cost-sheet.exe)
 
 ## 安装运行
 
