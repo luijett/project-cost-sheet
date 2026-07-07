@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (
     QDoubleSpinBox, QDialog, QComboBox, QDialogButtonBox,
     QCheckBox, QStackedWidget, QMenu, QTableWidget, QTableWidgetItem, QHeaderView, QTextEdit,
 )
-from PySide6.QtCore import Qt, Signal, QTimer, QRect, QPointF, QRectF, QSize, QPoint
+from PySide6.QtCore import Qt, Signal, QTimer, QRect, QPointF, QRectF, QSize, QPoint, QObject
 from PySide6.QtGui import (QFont, QColor, QPalette, QPainter, QPen, QBrush,
                              QPaintEvent, QPixmap, QIcon, QLinearGradient, QKeySequence, QShortcut)
 
@@ -1407,30 +1407,50 @@ class App(QMainWindow):
         from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
         from openpyxl.utils import get_column_letter
 
-        wb = Workbook(); ws = wb.active; ws.title = "费用明细"
-        black = PatternFill(start_color="000000", end_color="000000", fill_type="solid")
-        dark = PatternFill(start_color="1C1C1E", end_color="1C1C1E", fill_type="solid")
-        cat_fill = PatternFill(start_color="2C2C2E", end_color="2C2C2E", fill_type="solid")
-        thin = Border(bottom=Side(style="hair", color="38383A"))
+        wb = Workbook(); ws = wb.active; ws.title = "报价单"
 
-        ws.merge_cells("A1:G1")
-        ws["A1"] = f"{proj['name']}  费用明细"
-        ws["A1"].font = Font(name="Microsoft YaHei", size=18, bold=True, color="FFFFFF")
-        ws["A1"].alignment = Alignment(horizontal="center")
-        ws["A1"].fill = black; ws.row_dimensions[1].height = 36
+        # 样式
+        title_font = Font(name="Microsoft YaHei", size=22, bold=True, color="000000")
+        label_font = Font(name="Microsoft YaHei", size=10, color="666666")
+        hdr_fill = PatternFill(start_color="D9D9D9", end_color="D9D9D9", fill_type="solid")
+        hdr_font = Font(name="Microsoft YaHei", size=10, bold=True, color="000000")
+        body_font = Font(name="Microsoft YaHei", size=10, color="000000")
+        total_font = Font(name="Microsoft YaHei", size=12, bold=True)
+        total_fill = PatternFill(start_color="F2F2F2", end_color="F2F2F2", fill_type="solid")
+        thin = Border(bottom=Side(style="thin", color="D9D9D9"))
+        bottom_line = Border(bottom=Side(style="medium", color="000000"))
 
-        ws.merge_cells("A2:G2")
-        types = [t.strip() for t in proj.get("project_types", "print").split(",")]
-        tl = "套拍 (平面+视频)" if len(types) == 2 else ("平面" if types[0] == "print" else "视频")
-        ws["A2"] = f"{tl} | 币种:{proj.get('currency','CNY')} | {datetime.now():%Y-%m-%d %H:%M}"
-        ws["A2"].font = Font(color="8E8E93", size=10)
-        ws["A2"].alignment = Alignment(horizontal="center"); ws["A2"].fill = black
+        # 列宽
+        col_widths = [18, 42, 10, 12, 14, 18]
 
-        for c, h in enumerate(["分类", "费用项", "单价", "数量", "单位", "合计", "备注"], 1):
+        # ── 标题区 ──
+        ws.merge_cells("A1:C1")
+        ws["A1"] = "To:"
+        ws["A1"].font = label_font
+        ws.merge_cells("D1:F1")
+        ws["D1"] = "报价单"
+        ws["D1"].font = title_font
+        ws["D1"].alignment = Alignment(horizontal="right")
+        ws.merge_cells("A2:C2")
+        ws["A2"] = proj['name']
+        ws["A2"].font = Font(name="Microsoft YaHei", size=11, bold=True)
+        ws.merge_cells("D2:F2")
+        ws["D2"] = f"日期: {datetime.now():%Y-%m-%d}"
+        ws["D2"].font = label_font
+        ws["D2"].alignment = Alignment(horizontal="right")
+
+        for i, w in enumerate(col_widths, 1):
+            ws.column_dimensions[get_column_letter(i)].width = w
+
+        # ── 表头 ──
+        headers = ["Group/组", "Name/名称", "Unit/单位", "Quantity\n预计数量", "Unit Price\n单价", "Sub-total\n合计金额"]
+        for c, h in enumerate(headers, 1):
             cell = ws.cell(row=4, column=c, value=h)
-            cell.font = Font(name="Microsoft YaHei", size=10, bold=True, color="98989D")
-            cell.fill = dark; cell.alignment = Alignment(horizontal="center")
+            cell.font = hdr_font; cell.fill = hdr_fill
+            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        ws.row_dimensions[4].height = 30
 
+        # ── 数据 ──
         row = 5; gs = Decimal("0")
         cats = db.fetch("SELECT * FROM budget_categories WHERE project_id=? ORDER BY sort_order",
                         (self.current_pid,))
@@ -1439,46 +1459,44 @@ class App(QMainWindow):
             items = db.fetch("SELECT * FROM line_items WHERE category_id=? ORDER BY sort_order",
                              (cd["id"],))
             ct = sum(Decimal(str(it["total"] or "0")) for it in items); gs += ct
-            ws.merge_cells(f"A{row}:G{row}")
-            ws.cell(row=row, column=1, value=cd["name"]).font = Font(
-                name="Microsoft YaHei", size=12, bold=True, color="FFFFFF")
-            for c in range(1, 8): ws.cell(row=row, column=c).fill = cat_fill
-            ws.cell(row=row, column=6, value=f"小计: {sym}{ct:,.2f}").font = Font(
-                bold=True, color="98989D", size=11)
-            ws.cell(row=row, column=6).fill = cat_fill
-            ws.cell(row=row, column=6).alignment = Alignment(horizontal="right")
-            row += 1
+
             for it in items:
                 d = dict(it); t = Decimal(str(d["total"] or "0"))
-                ws.cell(row=row, column=2, value=d["description"] or "").font = Font(color="FFFFFF", size=11)
-                ws.cell(row=row, column=3, value=float(Decimal(str(d["unit_price"] or "0"))))
-                ws.cell(row=row, column=3).number_format = f'{sym}#,##0.00'
-                ws.cell(row=row, column=4, value=float(Decimal(str(d["quantity"] or "1"))))
-                ws.cell(row=row, column=5, value=d["unit"] or "")
-                ws.cell(row=row, column=6, value=float(t))
-                ws.cell(row=row, column=6).number_format = f'{sym}#,##0.00'
-                ws.cell(row=row, column=7, value=d["notes"] or "")
-                for c in range(1, 8): ws.cell(row=row, column=c).border = thin
+                up = Decimal(str(d["unit_price"] or "0"))
+                qty_raw = float(Decimal(str(d["quantity"] or "1")))
+                unit = (d["unit"] or "").strip()
+
+                ws.cell(row=row, column=1, value=cd["name"]).font = body_font
+                ws.cell(row=row, column=2, value=d["description"] or "").font = body_font
+                c3 = ws.cell(row=row, column=3, value=unit if unit else "")
+                c3.font = body_font; c3.alignment = Alignment(horizontal="center")
+                c4 = ws.cell(row=row, column=4, value=qty_raw)
+                c4.font = body_font; c4.alignment = Alignment(horizontal="center")
+                c5 = ws.cell(row=row, column=5, value=float(up))
+                c5.font = body_font; c5.number_format = f'{sym}#,##0.00'
+                c6 = ws.cell(row=row, column=6, value=float(t))
+                c6.font = body_font; c6.number_format = f'{sym}#,##0.00'
+                for c in range(1, 7): ws.cell(row=row, column=c).border = thin
                 row += 1
-            row += 1
 
-        row += 1; tr = Decimal(str(proj.get("tax_rate", "0")))
+        # ── 总计 ──
+        row += 0
+        tr = Decimal(str(proj.get("tax_rate", "0")))
         ta = calc_tax(gs, tr); gt = gs + ta
-        for lb, am, fn in [
-            ("不含税合计:", gs, Font(name="Microsoft YaHei", size=12, bold=True, color="FFFFFF")),
-            (f"税额 ({float(tr)*100:.0f}%):", ta, Font(name="Microsoft YaHei", size=11, color="FF9F0A")),
-            ("含税总计:", gt, Font(name="Microsoft YaHei", size=14, bold=True, color="FFD60A")),
-        ]:
-            ws.merge_cells(f"A{row}:D{row}")
-            ws.cell(row=row, column=1, value=lb).font = fn
-            ws.cell(row=row, column=1).alignment = Alignment(horizontal="right")
-            ws.cell(row=row, column=6, value=float(am)).font = fn
-            ws.cell(row=row, column=6).number_format = f'{sym}#,##0.00'
-            ws.cell(row=row, column=6).alignment = Alignment(horizontal="right")
-            row += 1
 
-        for i, w in enumerate([18, 32, 14, 8, 8, 16, 20], 1):
-            ws.column_dimensions[get_column_letter(i)].width = w
+        for c in range(1, 6): ws.cell(row=row, column=c).fill = total_fill
+        ws.merge_cells(f"A{row}:E{row}")
+        label_text = "Sub-total/总计（不含税）"
+        if tr > 0:
+            label_text += f"  |  税额({float(tr)*100:.0f}%): {sym}{ta:,.2f}  |  含税: {sym}{gt:,.2f}"
+        ws.cell(row=row, column=1, value=label_text).font = total_font
+        ws.cell(row=row, column=1).alignment = Alignment(horizontal="right", vertical="center")
+        c6 = ws.cell(row=row, column=6, value=float(gs))
+        c6.font = Font(name="Microsoft YaHei", size=12, bold=True); c6.fill = total_fill
+        c6.number_format = f'{sym}#,##0.00'; c6.alignment = Alignment(horizontal="right")
+        for c in range(1, 7): ws.cell(row=row, column=c).border = bottom_line
+        ws.row_dimensions[row].height = 24
+
         wb.save(path)
 
     # ── 导出 PDF ──
@@ -1504,7 +1522,7 @@ class App(QMainWindow):
         from reportlab.lib.units import mm
         from reportlab.lib.colors import HexColor
         from reportlab.lib.styles import ParagraphStyle
-        from reportlab.lib.enums import TA_CENTER, TA_RIGHT
+        from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT
         from reportlab.platypus import (
             SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable)
         from reportlab.pdfbase import pdfmetrics
@@ -1520,31 +1538,77 @@ class App(QMainWindow):
                 except Exception: continue
 
         doc = SimpleDocTemplate(path, pagesize=A4,
-                                leftMargin=20*mm, rightMargin=20*mm,
-                                topMargin=20*mm, bottomMargin=20*mm)
+                                leftMargin=18*mm, rightMargin=18*mm,
+                                topMargin=18*mm, bottomMargin=18*mm)
         story = []
+        BLACK = HexColor("#000000")
+        GRAY = HexColor("#666666")
+        LGRAY = HexColor("#D9D9D9")
+        WHITE = HexColor("#FFFFFF")
 
-        ts = ParagraphStyle("TS", fontName=cjk, fontSize=20, leading=28,
-                            spaceAfter=2*mm, alignment=TA_CENTER, textColor=HexColor("#FFFFFF"))
-        ss = ParagraphStyle("SS", fontName=cjk, fontSize=10, leading=14,
-                            spaceAfter=10*mm, alignment=TA_CENTER, textColor=HexColor("#98989D"))
-        cs = ParagraphStyle("CS", fontName=cjk, fontSize=11, leading=16,
-                            textColor=HexColor("#98989D"), spaceBefore=4*mm, spaceAfter=2*mm)
-        its = ParagraphStyle("IS", fontName=cjk, fontSize=10, leading=14, textColor=HexColor("#FFFFFF"))
-        ns = ParagraphStyle("NS", fontName=cjk, fontSize=8, leading=12, textColor=HexColor("#636366"))
-        fs = ParagraphStyle("FS", fontName=cjk, fontSize=8, leading=12,
-                            textColor=HexColor("#48484A"), alignment=TA_CENTER)
+        # 样式
+        ts = ParagraphStyle("TS", fontName=cjk, fontSize=22, leading=30,
+                            textColor=BLACK)
+        label_s = ParagraphStyle("LS", fontName=cjk, fontSize=10, leading=14,
+                                 textColor=GRAY)
+        hdr_s = ParagraphStyle("HS", fontName=cjk, fontSize=9, leading=13,
+                               textColor=BLACK, alignment=TA_CENTER)
+        body_s = ParagraphStyle("BS", fontName=cjk, fontSize=10, leading=14,
+                                textColor=BLACK)
+        body_c = ParagraphStyle("BC", fontName=cjk, fontSize=10, leading=14,
+                                textColor=BLACK, alignment=TA_CENTER)
+        body_r = ParagraphStyle("BR", fontName=cjk, fontSize=10, leading=14,
+                                textColor=BLACK, alignment=TA_RIGHT)
+        total_s = ParagraphStyle("TOS", fontName=cjk, fontSize=12, leading=18,
+                                 textColor=BLACK, alignment=TA_RIGHT)
+        foot_s = ParagraphStyle("FS", fontName=cjk, fontSize=7, leading=10,
+                                textColor=GRAY, alignment=TA_CENTER)
 
-        types = [t.strip() for t in proj.get("project_types", "print").split(",")]
-        tl_text = "套拍 (平面 + 视频)" if len(types) == 2 else ("平面" if types[0] == "print" else "视频")
+        # ── 标题行 ──
+        header_data = [
+            [Paragraph("To:", label_s),
+             Paragraph("", label_s),
+             Paragraph("", label_s),
+             Paragraph("报价单", ts),
+             Paragraph("", label_s),
+             Paragraph("", label_s)],
+            [Paragraph(proj['name'], ParagraphStyle("PN", fontName=cjk, fontSize=11, leading=16, textColor=BLACK)),
+             Paragraph("", label_s), Paragraph("", label_s),
+             Paragraph(f"日期: {datetime.now():%Y-%m-%d}", label_s),
+             Paragraph("", label_s), Paragraph("", label_s)],
+        ]
+        ht = Table(header_data, colWidths=[40*mm, 30*mm, 30*mm, 30*mm, 30*mm, 20*mm])
+        ht.setStyle(TableStyle([
+            ('SPAN', (3,0), (5,0)),
+            ('SPAN', (0,0), (2,0)),
+            ('SPAN', (0,1), (2,1)),
+            ('SPAN', (3,1), (5,1)),
+            ('ALIGN', (3,0), (5,0), 'RIGHT'),
+            ('ALIGN', (3,1), (5,1), 'RIGHT'),
+            ('VALIGN', (0,0), (-1,-1), 'TOP'),
+            ('TOPPADDING', (0,0), (-1,-1), 1),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 3),
+        ]))
+        story.append(ht)
+        story.append(Spacer(1, 8*mm))
 
-        story.append(Paragraph("project-cost-sheet", ts))
-        story.append(Paragraph(proj['name'], ts))
-        story.append(Paragraph(
-            f"{tl_text} | 币种: {proj.get('currency','CNY')} {sym} | {datetime.now():%Y-%m-%d}", ss))
-        story.append(HRFlowable(width="100%", thickness=0.5, color=HexColor("#38383A")))
-        story.append(Spacer(1, 4*mm))
+        # ── 表头 ──
+        hdr_row = [Paragraph("Group/组", hdr_s), Paragraph("Name/名称", hdr_s),
+                    Paragraph("Unit/单位", hdr_s), Paragraph("Quantity\n预计数量", hdr_s),
+                    Paragraph("Unit Price\n单价", hdr_s), Paragraph("Sub-total\n合计金额", hdr_s)]
+        hdr_table = Table([hdr_row], colWidths=[30*mm, 48*mm, 18*mm, 22*mm, 28*mm, 28*mm])
+        hdr_table.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,-1), LGRAY),
+            ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+            ('TOPPADDING', (0,0), (-1,-1), 6),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 6),
+            ('LINEBELOW', (0,0), (-1,0), 1.5, BLACK),
+            ('LINEABOVE', (0,0), (-1,0), 1.5, BLACK),
+        ]))
+        story.append(hdr_table)
 
+        # ── 数据 ──
         cats = db.fetch("SELECT * FROM budget_categories WHERE project_id=? ORDER BY sort_order",
                         (self.current_pid,))
         gs = Decimal("0"); data = []
@@ -1552,68 +1616,80 @@ class App(QMainWindow):
             cd = dict(cat)
             items = db.fetch("SELECT * FROM line_items WHERE category_id=? ORDER BY sort_order",
                              (cd["id"],))
-            ct = sum(Decimal(str(it["total"] or "0")) for it in items); gs += ct
-            data.append([
-                Paragraph(f"<b>{cd['name']}</b>", cs), "", "", "",
-                Paragraph(f"<b>{sym}{ct:,.2f}</b>",
-                          ParagraphStyle("R", fontName=cjk, fontSize=10,
-                                         textColor=HexColor("#98989D"), alignment=TA_RIGHT)),
-                ""])
             for it in items:
                 d = dict(it); t = Decimal(str(d["total"] or "0"))
-                u = (d.get("unit") or "").strip()
+                up = float(Decimal(str(d["unit_price"] or "0")))
+                qty_raw = float(Decimal(str(d["quantity"] or "1")))
+                unit = (d["unit"] or "").strip()
                 desc = (d["description"] or "").strip() or "-"
-                note = (d["notes"] or "").strip()
+                gs += t
                 data.append([
-                    Paragraph(desc, its),
-                    Paragraph(f"{sym}{float(Decimal(str(d['unit_price'] or '0'))):,.2f}", its),
-                    Paragraph(f"{float(Decimal(str(d['quantity'] or '1'))):g}{u}", its),
-                    "",
-                    Paragraph(f"{sym}{float(t):,.2f}", its),
-                    Paragraph(note, ns) if note else "",
+                    Paragraph(cd["name"], body_s),
+                    Paragraph(desc, body_s),
+                    Paragraph(unit if unit else "", body_c),
+                    Paragraph(f"{qty_raw:g}" if qty_raw == int(qty_raw) else f"{qty_raw:.1f}", body_c),
+                    Paragraph(f"{sym}{up:,.2f}", body_r),
+                    Paragraph(f"{sym}{float(t):,.2f}", body_r),
                 ])
 
-        cw = [72*mm, 28*mm, 24*mm, 4*mm, 28*mm, 24*mm]
-        tbl = Table(data, colWidths=cw, repeatRows=0)
-        tbl.setStyle(TableStyle([
-            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-            ('TOPPADDING', (0, 0), (-1, -1), 2),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
-            ('LINEBELOW', (0, 0), (-1, -1), 0.3, HexColor("#2C2C2E")),
-        ]))
+        col_w = [30*mm, 48*mm, 18*mm, 22*mm, 28*mm, 28*mm]
+        tbl = Table(data, colWidths=col_w, repeatRows=0)
+        tbl_style = [
+            ('ALIGN', (2,0), (3,-1), 'CENTER'),
+            ('ALIGN', (4,0), (5,-1), 'RIGHT'),
+            ('VALIGN', (0,0), (-1,-1), 'TOP'),
+            ('TOPPADDING', (0,0), (-1,-1), 4),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+            ('LINEBELOW', (0,0), (-1,-1), 0.5, LGRAY),
+        ]
+        tbl.setStyle(TableStyle(tbl_style))
         story.append(tbl)
-        story.append(Spacer(1, 8*mm))
-        story.append(HRFlowable(width="100%", thickness=0.5, color=HexColor("#FFD60A")))
-        story.append(Spacer(1, 4*mm))
 
+        # ── 总计 ──
+        story.append(Spacer(1, 4*mm))
         tr = Decimal(str(proj.get("tax_rate", "0")))
         ta = calc_tax(gs, tr); gt = gs + ta
-        sd = [
-            ["不含税合计:", f"{sym}{gs:,.2f}"],
-            [f"税额 ({float(tr)*100:.0f}%):", f"{sym}{ta:,.2f}"],
-            ["含税总计:", f"{sym}{gt:,.2f}"],
-        ]
-        st = Table(sd, colWidths=[140*mm, 40*mm])
-        st.setStyle(TableStyle([
-            ('ALIGN', (0, 0), (-1, -1), 'RIGHT'),
-            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ('TOPPADDING', (0, 0), (-1, -1), 4),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
-            ('FONTNAME', (0, 0), (-1, -1), cjk),
-            ('FONTSIZE', (0, 0), (-1, -1), 11),
-            ('TEXTCOLOR', (0, 0), (-1, -1), HexColor("#FFFFFF")),
-            ('TEXTCOLOR', (1, 1), (1, 1), HexColor("#FF9F0A")),
-            ('TEXTCOLOR', (1, 2), (1, 2), HexColor("#FFD60A")),
-            ('FONTSIZE', (0, 2), (1, 2), 14),
+        total_label = "Sub-total/总计（不含税）"
+        if tr > 0:
+            total_label += f"    税额({float(tr)*100:.0f}%): {sym}{ta:,.2f}    含税: {sym}{gt:,.2f}"
+        total_row = [[
+            Paragraph("", body_s), Paragraph("", body_s), Paragraph("", body_s),
+            Paragraph("", body_s),
+            Paragraph(total_label, ParagraphStyle("TL", fontName=cjk, fontSize=10, leading=16,
+                                                   textColor=BLACK, alignment=TA_RIGHT)),
+            Paragraph(f"{sym}{gs:,.2f}", total_s),
+        ]]
+        tt = Table(total_row, colWidths=col_w)
+        tt.setStyle(TableStyle([
+            ('SPAN', (0,0), (3,0)),
+            ('SPAN', (4,0), (4,0)),
+            ('ALIGN', (4,0), (4,0), 'RIGHT'),
+            ('ALIGN', (5,0), (5,0), 'RIGHT'),
+            ('LINEABOVE', (4,0), (5,0), 1.5, BLACK),
+            ('TOPPADDING', (0,0), (-1,-1), 8),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 4),
         ]))
-        story.append(st)
-        story.append(Spacer(1, 12*mm))
-        story.append(HRFlowable(width="100%", thickness=0.5, color=HexColor("#38383A")))
+        story.append(tt)
+        story.append(Spacer(1, 16*mm))
         story.append(Paragraph(
-            f"系统自动生成，仅供内部对账使用 | {datetime.now():%Y-%m-%d %H:%M}", fs))
+            f"Generated by project-cost-sheet | {datetime.now():%Y-%m-%d %H:%M}", foot_s))
 
         doc.build(story)
+
+
+# ── 全局禁用 SpinBox 滚轮 ──
+
+class WheelFilter(QObject):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+    def eventFilter(self, obj, event):
+        if event.type() == event.Type.Wheel:
+            from PySide6.QtWidgets import QAbstractSpinBox
+            if isinstance(obj, QAbstractSpinBox):
+                obj.event(event)  # 尝试让 spinbox 自己吃事件但不处理
+                return True
+        return False
+
 
 
 def main():
@@ -1622,6 +1698,26 @@ def main():
     app.setPalette(DARK_PALETTE)
     app.setFont(QFont("Microsoft YaHei", 10))
     app.setStyleSheet(STYLE)
+
+    # 全局禁用 SpinBox 滚轮调整（避免滚动页面时误改数字）
+    def _ignore_wheel(obj, event):
+        if event.type() == event.Type.Wheel:
+            from PySide6.QtWidgets import QAbstractSpinBox
+            if isinstance(obj, QAbstractSpinBox):
+                return True
+        return False
+    app.installEventFilter(app)  # 不能这样... 需要用一个独立的 filter object
+
+    class WheelFilter(QObject):
+        def eventFilter(self, obj, event):
+            if event.type() == event.Type.Wheel:
+                from PySide6.QtWidgets import QAbstractSpinBox
+                if isinstance(obj, QAbstractSpinBox):
+                    return True
+            return False
+    _wf = WheelFilter(app)
+    app.installEventFilter(_wf)
+
     w = App(); w._show_empty(); w.show()
     sys.exit(app.exec())
 
